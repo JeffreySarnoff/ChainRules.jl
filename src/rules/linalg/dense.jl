@@ -69,3 +69,88 @@ end
 frule(::typeof(tr), x) = (tr(x), Rule(Δx -> tr(extern(Δx))))
 
 rrule(::typeof(tr), x) = (tr(x), Rule(ΔΩ -> Diagonal(fill(ΔΩ, size(x, 1)))))
+
+#####
+##### Binary operations
+#####
+
+const BINARY_LINALG_OPS = [
+    (*, AbstractArray, AbstractArray,
+        :(Ȳ * B'),
+        :(A' * Ȳ)),
+    (*, Transpose, AbstractArray,
+        :(B * transpose(Ȳ)),
+        :(A * Ȳ)),
+    (*, AbstractArray, Transpose,
+        :(Ȳ * B),
+        :(transpose(Ȳ) * A)),
+    (*, Transpose, Transpose,
+        :(transpose(B) * transpose(Ȳ)),
+        :(transpose(Ȳ) * transpose(A))),
+    (*, Adjoint, AbstractArray,
+        :(B * transpose(Ȳ)),
+        :(A * Ȳ)),
+    (*, AbstractArray, Adjoint,
+        :(Ȳ * B),
+        :(Ȳ' * A)),
+    (*, Adjoint, Adjoint,
+        :(B' * Ȳ'),
+        :(Ȳ' * A')),
+    (/, AbstractArray, AbstractArray,
+        :(Ȳ / transpose(B)),
+        :(-transpose(Y) * (Ȳ / transpose(B)))),
+    (/, Transpose, AbstractArray,
+        :(B \ transpose(Ȳ)),
+        :(-transpose(Y) * (Ȳ / transpose(B)))),
+    (/, AbstractArray, Transpose,
+        :(Ȳ / B),
+        :(-(transpose(B) \ transpose(Ȳ)) * Y)),
+    (/, Transpose, Transpose,
+        :(transpose(B) \ transpose(Ȳ)),
+        :(-(transpose(B) \ transpose(Ȳ)) * Y)),
+    (/, Adjoint, AbstractArray,
+        :(B \ Ȳ'),
+        :(-Y' * (Ȳ / B'))),
+    (/, AbstractArray, Adjoint,
+        :(Ȳ / B),
+        :(-(transpose(B) \ transpose(Ȳ)) * Y)),
+    (/, Adjoint, Adjoint,
+        :(B' \ Ȳ'),
+        :(-(B' \ Ȳ') * Y)),
+    (\, AbstractArray, AbstractArray,
+        :(-(transpose(A) \ Ȳ) * transpose(Y)),
+        :(transpose(A) \ Ȳ)),
+    (\, Transpose, AbstractArray,
+        :(-Y * transpose(A \ Ȳ)),
+        :(A \ Ȳ)),
+    (\, AbstractArray, Transpose,
+        :(-transpose(transpose(Ȳ) / A) * transpose(Y)),
+        :(transpose(Ȳ) / A)),
+    (\, Transpose, Transpose,
+       :(-Y * (transpose(Ȳ) / transpose(A))),
+       :(transpose(Ȳ) / transpose(A))),
+    (\, Adjoint, AbstractArray,
+        :(-Y * (A \ Ȳ)'),
+        :(A \ Ȳ)),
+    (\, AbstractArray, Adjoint,
+        :(-(Ȳ' / A)' * Y),
+        :(Ȳ' / A)),
+    (\, Adjoint, Adjoint,
+        :(-Y * (Ȳ' / A')),
+        :(Ȳ' / A')),
+    #(norm, AbstractArray, Number,
+    #    :(Ȳ .* Y^(1 - B) .* abs.(A).^B ./ A),
+    #    :(Ȳ * (Y^(1 - B) * sum(abs.(A).^B .* log.(abs.(A))) - Y * log(Y)) / B)),
+    #(norm, Number, Number,
+    #    :(Ȳ * sign(A)),
+    #    :(zero(A) + zero(B))),
+]
+
+for (f, TA, TB, Ā, B̄) in BINARY_LINALG_OPS
+    @eval function rrule(::typeof($f), A::$TA, B::$TB)
+        Y = $f(A, B)
+        ∂A = Rule(Ȳ -> $Ā)
+        ∂B = Rule(Ȳ -> $B̄)
+        return Y, (∂A, ∂B)
+    end
+end
