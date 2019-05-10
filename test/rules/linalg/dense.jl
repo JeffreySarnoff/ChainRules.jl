@@ -3,10 +3,6 @@ function generate_well_conditioned_matrix(rng, N)
     return A * A' + I
 end
 
-typewrap(::Type{Adjoint}, X) = adjoint(X)
-typewrap(::Type{Transpose}, X) = transpose(X)
-typewrap(::Type, X) = X
-
 @testset "linalg" begin
     @testset "sum" begin
         @testset "Vector" begin
@@ -77,8 +73,8 @@ typewrap(::Type, X) = X
     @testset "$f(::$TA, ::$TB)" for (f, TA, TB, _, _) in ChainRules.BINARY_LINALG_OPS
         rng = MersenneTwister(123456)
         n = 5
-        A = typewrap(TA, randn(rng, n, n))
-        B = typewrap(TB, randn(rng, n, n))
+        A = randn(rng, n, n)
+        B = randn(rng, n, n)
         Ȳ = randn(rng, n, n)
         rrule_test(f, Ȳ, (A, randn(rng, n, n)), (B, randn(rng, n, n)))
     end
