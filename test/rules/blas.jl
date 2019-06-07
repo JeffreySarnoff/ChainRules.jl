@@ -20,6 +20,14 @@ using LinearAlgebra.BLAS: gemm
                 x̄_ad = dx(ȳ)
                 x̄_fd = j′vp(central_fdm(5, 1), f, ȳ, x)
                 @test x̄_ad ≈ x̄_fd rtol=1e-9 atol=1e-9
+                if size(x) != ()  # A and B
+                    @test dx isa Rule{<:Function,<:Function}
+                    x̄ = zeros(size(x)...)
+                    ChainRules.accumulate!(x̄, dx, ȳ)
+                    @test x̄ ≈ x̄_ad rtol=1e-9 atol=1e-9
+                else  # α
+                    @test dx isa Rule{<:Function,Nothing}
+                end
             end
         end
     end

@@ -83,25 +83,33 @@ end
 function rrule(::typeof(gemm), tA::Char, tB::Char, α::T,
                A::AbstractMatrix{T}, B::AbstractMatrix{T}) where T<:BlasFloat
     C = gemm(tA, tB, α, A, B)
-    ∂α = C̄ -> sum(C̄ .* C) / α
+    β = one(T)
     if uppercase(tA) === 'N'
         if uppercase(tB) === 'N'
-            ∂A = C̄ -> gemm('N', 'T', α, C̄, B)
-            ∂B = C̄ -> gemm('T', 'N', α, A, C̄)
+            ∂A = Rule(C̄ -> gemm('N', 'T', α, C̄, B),
+                      (Ā, C̄) -> gemm!('N', 'T', α, C̄, B, β, Ā))
+            ∂B = Rule(C̄ -> gemm('T', 'N', α, A, C̄),
+                      (B̄, C̄) -> gemm!('T', 'N', α, A, C̄, β, B̄))
         else
-            ∂A = C̄ -> gemm('N', 'N', α, C̄, B)
-            ∂B = C̄ -> gemm('T', 'N', α, C̄, A)
+            ∂A = Rule(C̄ -> gemm('N', 'N', α, C̄, B),
+                      (Ā, C̄) -> gemm!('N', 'N', α, C̄, B, β, Ā))
+            ∂B = Rule(C̄ -> gemm('T', 'N', α, C̄, A),
+                      (B̄, C̄) -> gemm!('T', 'N', α, C̄, A, β, B̄))
         end
     else
         if uppercase(tB) === 'N'
-            ∂A = C̄ -> gemm('N', 'T', α, B, C̄)
-            ∂B = C̄ -> gemm('N', 'N', α, A, C̄)
+            ∂A = Rule(C̄ -> gemm('N', 'T', α, B, C̄),
+                      (Ā, C̄) -> gemm!('N', 'T', α, B, C̄, β, Ā))
+            ∂B = Rule(C̄ -> gemm('N', 'N', α, A, C̄),
+                      (B̄, C̄) -> gemm!('N', 'N', α, A, C̄, β, B̄))
         else
-            ∂A = C̄ -> gemm('T', 'T', α, B, C̄)
-            ∂B = C̄ -> gemm('T', 'T', α, C̄, A)
+            ∂A = Rule(C̄ -> gemm('T', 'T', α, B, C̄),
+                      (Ā, C̄) -> gemm!('T', 'T', α, B, C̄, β, Ā))
+            ∂B = Rule(C̄ -> gemm('T', 'T', α, C̄, A),
+                      (B̄, C̄) -> gemm!('T', 'T', α, C̄, A, β, B̄))
         end
     end
-    return C, (DNERule(), DNERule(), _rule_via(∂α), _rule_via(∂A), _rule_via(∂B))
+    return C, (DNERule(), DNERule(), Rule(C̄ -> dot(C̄, C) / α), ∂A, ∂B)
 end
 
 function rrule(::typeof(gemm), tA::Char, tB::Char,
