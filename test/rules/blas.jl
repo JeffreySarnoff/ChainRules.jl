@@ -1,4 +1,4 @@
-using LinearAlgebra.BLAS: gemm
+using LinearAlgebra.BLAS: gemm, gemv
 
 @testset "BLAS" begin
     @testset "gemm" begin
@@ -27,6 +27,33 @@ using LinearAlgebra.BLAS: gemm
                     @test x̄ ≈ x̄_ad rtol=1e-9 atol=1e-9
                 else  # α
                     @test dx isa Rule{<:Function,Nothing}
+                end
+            end
+        end
+    end
+    @testset "gemv" begin
+        rng = MersenneTwister(2)
+        for n in 3:5, m in 3:5, t in ('N', 'T')
+            α = randn(rng)
+            A = randn(rng, m, n)
+            x = randn(rng, t === 'N' ? n : m)
+            y, (dt, dα, dA, dx) = rrule(gemv, t, α, A, x)
+            @test y ≈ α * (t === 'N' ? A : A') * x
+            @test dt isa ChainRules.DNERule
+            for (f, z, dz) in [(z->gemv(t, z, A, x), α, dα),
+                               (z->gemv(t, α, z, x), A, dA),
+                               (z->gemv(t, α, A, z), x, dx)]
+                ȳ = randn(rng, size(y)...)
+                z̄_ad = dz(ȳ)
+                z̄_fd = j′vp(central_fdm(5, 1), f, ȳ, z)
+                @test z̄_ad ≈ z̄_fd atol=1e-9 rtol=1e-9
+                if size(z) != ()  # A and x
+                    @test dz isa Rule{<:Function,<:Function}
+                    z̄ = zeros(size(z)...)
+                    ChainRules.accumulate!(z̄, dz, ȳ)
+                    @test z̄ ≈ z̄_ad atol=1e-9 rtol=1e-9
+                else  # α
+                    @test dz isa Rule{<:Function,Nothing}
                 end
             end
         end

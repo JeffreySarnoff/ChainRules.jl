@@ -4,7 +4,7 @@ package (https://github.com/invenia/DiffLinearAlgebra.jl).
 =#
 
 using LinearAlgebra: BlasFloat
-using LinearAlgebra.BLAS: gemm
+using LinearAlgebra.BLAS: gemm, gemv, ger!
 
 _zeros(x) = fill!(similar(x), zero(eltype(x)))
 
@@ -63,17 +63,23 @@ end
 ##### `BLAS.gemv`
 #####
 
-function rrule(::typeof(BLAS.gemv), tA, α, A, x)
-    Ω = BLAS.gemv(tA, α, A, x)
-    ∂α = ΔΩ -> dot(ΔΩ, Ω) / α
-    ∂A = ΔΩ -> uppercase(tA) == 'N' ? α * ΔΩ * x' : α * x * ΔΩ'
-    ∂x = ΔΩ -> gemv(uppercase(tA) == 'N' ? 'T' : 'N', α, A, ΔΩ)
-    return Ω, (DNERule(), _rule_via(∂α), _rule_via(∂A), _rule_via(∂x))
+function rrule(::typeof(gemv), tA::Char, α::T, A::AbstractMatrix{T},
+               x::AbstractVector{T}) where T<:BlasFloat
+    y = gemv(tA, α, A, x)
+    if uppercase(tA) === 'N'
+        ∂A = Rule(ȳ -> α * ȳ * x', (Ā, ȳ) -> ger!(α, ȳ, x, Ā))
+        ∂x = Rule(ȳ -> gemv('T', α, A, ȳ), (x̄, ȳ) -> gemv!('T', α, A, ȳ, one(T), x̄))
+    else
+        ∂A = Rule(ȳ -> α * x * ȳ', (Ā, ȳ) -> ger!(α, x, ȳ, Ā))
+        ∂x = Rule(ȳ -> gemv('N', α, A, ȳ), (x̄, ȳ) -> gemv!('N', α, A, ȳ, one(T), x̄))
+    end
+    return y, (DNERule(), Rule(ȳ -> dot(ȳ, y) / α), ∂A, ∂x)
 end
 
-function rrule(f::typeof(BLAS.gemv), tA, A, x)
-    Ω, (dtA, dα, dA, dx) = rrule(f, tA, one(eltype(A)), A, x)
-    return Ω, (dtA, dA, dx)
+function rrule(::typeof(gemv), tA::Char, A::AbstractMatrix{T},
+               x::AbstractVector{T}) where T<:BlasFloat
+    y, (dtA, _, dA, dx) = rrule(gemv, tA, one(T), A, x)
+    return y, (dtA, dA, dx)
 end
 
 #####
